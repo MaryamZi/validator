@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+import "google/protobuf/wrappers.proto";
+
+service Validator {
+	rpc validate(stream google.protobuf.StringValue)
+			returns (stream Result);
+}
+
+message Result {
+  string number = 1;
+  bool blacklisted = 2;
+}
