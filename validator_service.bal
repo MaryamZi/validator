@@ -1,5 +1,5 @@
-import ballerina/grpc;
 import ballerina/crypto;
+import ballerina/grpc;
 import ballerina/log;
 
 configurable int port = ?;
@@ -22,7 +22,7 @@ listener grpc:Listener ep = new (port, {
     descMap: getDescriptorMap()
 }
 service "Validator" on ep {
-    remote function validate(ValidatorResultCaller caller, stream<string, grpc:Error> clientStream) returns error? {
+    isolated remote function validate(ValidatorResultCaller caller, stream<string, grpc:Error> clientStream) returns error? {
 
         record {| string value; |}? next = check clientStream.next();
 
@@ -40,7 +40,7 @@ service "Validator" on ep {
             next = check clientStream.next();
         }
 
-        return caller->complete();
+        check caller->complete();
     }
 }
 

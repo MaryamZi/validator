@@ -57,4 +57,6 @@ function testMultipleInvalidCreditCardNumber() returns error? {
         receiveResult = validateStreamingClient->receiveResult();
         count += 1;
     }
+
+    test:assertEquals(count, 4);
 }
