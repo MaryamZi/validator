@@ -1,9 +1,11 @@
+import ballerina/cache;
 import ballerina/crypto;
 import ballerina/grpc;
 import ballerina/log;
 
-configurable int port = ?;
-configurable readonly & record {
+final configurable int port = ?;
+
+final configurable readonly & record {
     string path?; 
     string password?; 
     string certFile?;
@@ -11,7 +13,6 @@ configurable readonly & record {
     string keyPassword?; } key = ?;
 
 listener grpc:Listener ep = new (port, {
-    host: "localhost",
     secureSocket: {
         key: <readonly & crypto:KeyStore|grpc:CertKey> key
     }
@@ -44,4 +45,21 @@ service "Validator" on ep {
     }
 }
 
-isolated function isBlacklisted(string number) returns boolean => number.length() != 16;
+isolated function isBlacklisted(string number) returns boolean {
+    boolean|cache:Error result;
+    lock {
+        result = <boolean|cache:Error> blacklistCache.get(number);
+    }
+
+    if result is boolean {
+        return true;
+    }
+    
+    boolean hasEntry = hasEntryInDatabase(number);
+    if hasEntry {
+        lock {
+            checkpanic blacklistCache.put(number, true);
+        }
+    }
+    return hasEntry;
+}
