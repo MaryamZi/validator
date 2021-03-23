@@ -1,9 +1,21 @@
 import ballerina/grpc;
+import ballerina/crypto;
 import ballerina/log;
 
 configurable int port = ?;
+configurable readonly & record {
+    string path?; 
+    string password?; 
+    string certFile?;
+    string keyFile?;
+    string keyPassword?; } key = ?;
 
-listener grpc:Listener ep = new (port);
+listener grpc:Listener ep = new (port, {
+    host: "localhost",
+    secureSocket: {
+        key: <readonly & crypto:KeyStore|grpc:CertKey> key
+    }
+});
 
 @grpc:ServiceDescriptor {
     descriptor: ROOT_DESCRIPTOR,

@@ -1,7 +1,14 @@
+import ballerina/crypto;
 import ballerina/grpc;
 import ballerina/test;
 
-ValidatorClient validatorClient = check new (string `http://localhost:${port}`);
+configurable readonly & record {| string path; string password; |} cert = ?;
+
+ValidatorClient validatorClient = check new (string `https://localhost:${port}`, {
+    secureSocket: {
+        cert: <crypto:TrustStore> cert // Workaround for https://github.com/ballerina-platform/ballerina-lang/issues/29486
+    }
+});
 
 @test:Config
 function testSingleInvalidCreditCardNumber() returns error? {
