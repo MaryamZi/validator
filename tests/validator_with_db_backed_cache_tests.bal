@@ -1,5 +1,6 @@
 import ballerina/crypto;
 import ballerina/grpc;
+import ballerina/sql;
 import ballerina/test;
 
 configurable readonly & record {| string path; string password; |} cert = ?;
@@ -10,8 +11,37 @@ ValidatorClient validatorClient = check new (string `https://localhost:${port}`,
     }
 });
 
-@test:Config
-function testSingleInvalidCreditCardNumber() returns error? {
+@test:BeforeGroups {
+    value: ["db-backed"]
+}
+function populateDatabase() returns error? {
+    lock {
+        sql:ExecutionResult result = check jdbcClient->execute(string `DROP TABLE IF EXISTS ${dbTable}`);
+        result = check jdbcClient->execute(string `CREATE TABLE IF NOT EXISTS ${dbTable}(number VARCHAR(50))`);
+        result = check jdbcClient->execute(string `INSERT INTO ${dbTable} (number) VALUES ('invalid')`);
+        result = check jdbcClient->execute(string `INSERT INTO ${dbTable} (number) VALUES ('10101010')`);
+        result = check jdbcClient->execute(string `INSERT INTO ${dbTable} (number) VALUES ('1')`);
+        result = check jdbcClient->execute(string `INSERT INTO ${dbTable} (number) VALUES ('2222222222222222')`);
+    }
+}
+
+@test:AfterGroups {
+    value: ["db-backed"]
+}
+function clearDatabase() returns error? {
+    lock {
+        check blacklistCache.invalidateAll();
+    }
+
+    // lock {
+    //     _ = check jdbcClient->execute(string `DROP TABLE ${dbTable}`);
+    // }
+}
+
+@test:Config {
+    groups: ["db-backed"]
+}
+function testSingleInvalidCreditCardNumberForDbBackedCache() returns error? {
     ValidateStreamingClient validateStreamingClient = check validatorClient->validate();
     
     check validateStreamingClient->sendString("invalid");
@@ -20,8 +50,10 @@ function testSingleInvalidCreditCardNumber() returns error? {
     test:assertEquals(receiveResult, <Result> {number: "invalid", blacklisted: true});
 }
 
-@test:Config
-function testSingleValidCreditCardNumber() returns error? {
+@test:Config {
+    groups: ["db-backed"]
+}
+function testSingleValidCreditCardNumberForDbBackedCache() returns error? {
     ValidateStreamingClient validateStreamingClient = check validatorClient->validate();
     
     check validateStreamingClient->sendString("1111111111111111");
@@ -30,15 +62,18 @@ function testSingleValidCreditCardNumber() returns error? {
     test:assertEquals(receiveResult, <Result> {number: "1111111111111111", blacklisted: false});
 }
 
-@test:Config
-function testMultipleInvalidCreditCardNumber() returns error? {
+@test:Config {
+    groups: ["db-backed"]
+}
+function testMultipleInvalidCreditCardNumberForDbBackedCache() returns error? {
     ValidateStreamingClient validateStreamingClient = check validatorClient->validate();
 
     map<boolean> blacklistedStatus = {
         "invalid": true,
         "10101010": true,
         "1111111122222222": false,
-        "1": true
+        "1": true,
+        "2222222222222222": true
     };
 
     foreach var num in blacklistedStatus.keys() {
